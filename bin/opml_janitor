@@ -40,6 +40,16 @@ opts.each do |opt, arg|
   end
 end
 
+if options[:help]
+  puts "Usage: #{$0} [-hvt] [-s <date>] [-i <input file>] [-o <output file>]"
+  puts "  -h    displays this help text"
+  puts "  -v    turns on debugging messages (encouraged)"
+  puts "  -t    turns on threading (encouraged for opml feeds of more than 10 items)"
+  puts "  -i    specify a file for input (default is standard input)"
+  puts "  -o    specify a file for output (default is standard output)"
+  exit
+end
+
 opml_janitor = OpmlJanitor::Parser.from_filehandle(options[:input])
 opml_janitor.debug = options[:debug]
 if options[:threaded]

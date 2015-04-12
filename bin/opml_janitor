@@ -1,0 +1,52 @@
+#!/usr/bin/env ruby
+require 'opml_janitor'
+require 'getoptlong'
+require 'time'
+
+opts = GetoptLong.new(
+  [ '--help', '-h', GetoptLong::NO_ARGUMENT ],
+  [ '--debug', '-v', GetoptLong::NO_ARGUMENT ],
+  [ '--since', '-s', GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--input', '-i', GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--output', '-o', GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--threaded', '-t', GetoptLong::NO_ARGUMENT ]
+)
+
+options = {
+  :help => false,
+  :debug => false,
+  :threaded => true,
+  :since => nil,
+  :input => $stdin,
+  :output => $stdout
+}
+
+opts.each do |opt, arg|
+	case opt
+	when '--help'
+		options[:help] = true
+	when '--debug'
+		options[:debug] = true
+  when '--since'
+    options[:since] = Time.parse(arg)
+  when '--input'
+    options[:input] = File.open(arg, 'r')
+  when '--output'
+    options[:output] = File.open(arg, 'w')
+  when '--threaded'
+    options[:threaded] = true
+  else
+    options[:help] = true
+  end
+end
+
+opml_janitor = OpmlJanitor::Parser.from_filehandle(options[:input])
+opml_janitor.debug = options[:debug]
+if options[:threaded]
+  opml_janitor.validate_threaded!(options[:since])
+else
+  opml_janitor.validate!(options[:since])
+end
+result = opml_janitor.to_xml
+options[:output].puts(result)
+

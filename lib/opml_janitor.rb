@@ -7,66 +7,106 @@ require 'timeout'
 require 'thread'
 require 'pp'
 
-module OpmlJanitor
+module OpmlJanitor # :nodoc:
+  # The Parser class takes in the contents of an OPML XML document and
+  # can filter and save the results
   class Parser
+    # initialize takes the contents of an OPML XML document and a flag
+    # for debug messages (default false)
     def initialize(contents, debug = false)
       @xml = contents
       @opml = Nokogiri::XML.parse(@xml)
       @debug = debug
+      @threads = 1
       @timeout = 20
     end
     
+    # debug= sets the debug flag
     def debug=(debug)
       @debug = debug
     end
     
+    # timeout= sets the timeout for downloading and processing each feed
+    # the default is 20 seconds
     def timeout=(timeout)
       @timeout = timeout
     end
     
+    ##
+    # threads= sets the number of threads for running the validation process
+    def threads=(threads)
+      @threads = threads
+    end
+    
+    ##
+    # from_filehandle allows the OPML XML document to be read from a given
+    # filehandle and returns an initialized Parser instance
     def self.from_filehandle(filehandle)
       contents = filehandle.read
       Parser.new(contents)
     end
     
+    ##
+    # from_file takes in a filename and returns an initialized Parser instance
     def self.from_file(filename)
       from_filehandle(File.open(filename, 'r'))
     end
     
+    ##
+    # from_url takes in a URL as a string and returns an initialized Parser instance
     def self.from_url(url)
       from_filehandle(open(url).read)
     end
     
-    def filter_dom!(data, &block)
-      data.each do |node|
-        if node.name == 'outline'
-          outline = Outline.new(node).to_hash
-          if node.children.length > 0
-            title = outline[:title] || outline[:text]
-            filter_dom!(node.children)
-          else
-            print "Testing #{outline[:xml_url]}" if @debug
-            spaces = 80 - outline[:xml_url].length
-            spaces = 1 if spaces < 1
-            print " " * spaces if @debug
-            if block.call(outline)
-              puts "[PASS]" if @debug
-            else
-              puts "[FAIL]" if @debug
-              node.unlink
+    ##
+    # validate! takes in one argument, +since+, specifing a Time object. Since is used to check if any posts have been posted since that time, thus detecting "stale" blogs/rss feeds 
+    def validate!(since = nil)
+      # this threading methodology is highly expensive for simple blocks, but a life-saver for IO-bound blocks
+      @work_queue = Queue.new
+      data = @opml.css("body").children
+      boss = Thread.new do
+        filter!(data)
+      end
+      
+      workers = (0...@threads).map do
+        @work_queue.push(false) # this will end each thread
+        Thread.new do
+          begin
+            while work = @work_queue.pop()
+              val = validate_callback(work[:outline], since)
+              spaces = 80 - work[:outline][:xml_url].length
+              spaces = 1 if spaces < 1
+              puts "#{work[:outline][:xml_url]}#{' ' * spaces}#{val}" if @debug
+              unless val == "PASS"
+                work[:node].unlink
+              end
             end
+          rescue ThreadError
           end
         end
       end
+      boss.join
+      workers.map(&:join)
     end
     
-    def filter_threaded!(data)
+    ##
+    # to_xml outputs the current OPML XML structure as a String containing all the XML markup
+    def to_xml
+      @opml.to_xml
+    end
+
+    private
+
+    ##
+    # filter! recurses down the OPML body, looking for outline tags, and pushes each
+    # leaf node onto a work queue
+    def filter!(data)
       data.each do |node|
         if node.name == 'outline'
           outline = Outline.new(node).to_hash
           if node.children.length > 0
             title = outline[:title] || outline[:text]
-            filter_threaded!(node.children)
+            filter!(node.children)
           else
             @work_queue.push({ :outline => outline, :node => node})
           end
@@ -74,8 +114,11 @@ module OpmlJanitor
       end      
     end
     
+    ##
+    # validate_callback tries to download a feed and verify that it has been updated
+    # since the +since+ time
     def validate_callback(feed, since=nil)
-      val = false
+      val = "FAIL"
       begin
         Timeout::timeout(@timeout) {
           open(feed[:xml_url]) do |rss|
@@ -98,65 +141,36 @@ module OpmlJanitor
               if since
                 #p last_updated
                 if last_updated and last_updated > since
-                  val = true
+                  val = "PASS"
+                else
+                  val = "STALE"
                 end
               else
-                val = true
+                val = "PASS"
               end
+            else
+              val = "NOFEED"
             end
           end
         }
       rescue EOFError => e
-        #puts e.backtrace if @debug
+        val = "EOFError"
       rescue OpenURI::HTTPError => e
-        #puts e.backtrace if @debug
+        val = "HTTPError"
       rescue RSS::Error => e
-        #puts e.backtrace if @debug
+        val = "RSSError"
       rescue Timeout::Error => e
-        #puts e.backtrace if @debug
+        val = "Timedout"
       rescue SocketError => e
+        val = "SocketError"
       rescue RuntimeError => e
+        val = "Redirect Loop"
       rescue Errno::ECONNREFUSED => e
+        val = "Connection Refused"
       rescue Exception => e
-        puts e
+        val = "Unexpected error: #{e}"
       end
       val      
-    end
-    
-    def validate_threaded!(since = nil)
-      # this threading methodology is highly expensive for simple blocks, but a life-saver for IO-bound blocks
-      @work_queue = Queue.new
-      data = @opml.css("body").children
-      filter_threaded!(data)
-      
-      workers = (0...100).map do
-        Thread.new do
-          begin
-            while work = @work_queue.pop(true)
-              val = validate_callback(work[:outline], since)
-              spaces = 80 - work[:outline][:xml_url].length
-              spaces = 1 if spaces < 1
-              puts "#{work[:outline][:xml_url]}#{' ' * spaces}#{(val) ? '[PASS]' : '[FAIL]'}" if @debug
-              unless val
-                work[:node].unlink
-              end
-            end
-          rescue ThreadError
-          end
-        end
-      end
-      workers.map(&:join)
-    end
-    
-    def validate!(since = nil)
-      data = @opml.css("body").children
-      filter_dom!(data) do |feed|
-        validate_callback(feed, since)
-      end
-    end
-    
-    def to_xml
-      @opml.to_xml
     end
   end
   

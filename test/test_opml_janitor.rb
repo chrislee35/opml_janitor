@@ -22,6 +22,6 @@ class TestOPMLJanitor < Minitest::Test
   def test_opml_validation_with_time
     opmljanitor = OpmlJanitor::Parser.from_file("test/test2.opml")
     opmljanitor.validate!(Time.now - (265*24*60*60))
-    puts opmljanitor.to_xml
+    xml = opmljanitor.to_xml
   end
 end

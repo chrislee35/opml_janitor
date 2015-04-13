@@ -9,13 +9,13 @@ opts = GetoptLong.new(
   [ '--since', '-s', GetoptLong::REQUIRED_ARGUMENT ],
   [ '--input', '-i', GetoptLong::REQUIRED_ARGUMENT ],
   [ '--output', '-o', GetoptLong::REQUIRED_ARGUMENT ],
-  [ '--threaded', '-t', GetoptLong::NO_ARGUMENT ]
+  [ '--threads', '-t', GetoptLong::REQUIRED_ARGUMENT ]
 )
 
 options = {
   :help => false,
   :debug => false,
-  :threaded => true,
+  :threads => 1,
   :since => nil,
   :input => $stdin,
   :output => $stdout
@@ -33,8 +33,8 @@ opts.each do |opt, arg|
     options[:input] = File.open(arg, 'r')
   when '--output'
     options[:output] = File.open(arg, 'w')
-  when '--threaded'
-    options[:threaded] = true
+  when '--threads'
+    options[:threads] = arg.to_i
   else
     options[:help] = true
   end
@@ -52,11 +52,8 @@ end
 
 opml_janitor = OpmlJanitor::Parser.from_filehandle(options[:input])
 opml_janitor.debug = options[:debug]
-if options[:threaded]
-  opml_janitor.validate_threaded!(options[:since])
-else
-  opml_janitor.validate!(options[:since])
-end
+opml_janitor.threads = options[:threads]
+opml_janitor.validate!(options[:since])
 result = opml_janitor.to_xml
 options[:output].puts(result)
 

@@ -39,7 +39,7 @@ Or you could use the bundled tool
 	  -o    specify a file for output (default is standard output)
 	  
 
-Example: 
+### Example: 
 
 	$ opml_janitor -i subscriptions.xml -o sub.xml -s "2015-01-01" -v -t 20
 
@@ -49,6 +49,34 @@ Example:
 * Verbose messages
 * 20 threads
 
+### Example verbose messages
+
+	http://feeds.trendmicro.com/Anti-MalwareBlog                                    PASS
+	http://www.thedarkvisitor.com/feed/                                             STALE
+	http://castlecops.com/backendforum281.php                                       Timedout
+	http://milw0rm.com/rss.php                                                      Connection Refused
+	http://cboblog.cbo.gov/?feed=rss2                                               SocketError
+	http://rssblog.ameba.jp/amaterasu/rss20.xml                                     HTTPError
+	http://www.kulando.de/rss.php?blogId=5567&profile=atom                          RSSError
+	http://blog.rietta.com/feeds/posts/default                                      Redirect Loop
+
+### Status meanings
+
+* **PASS**
+ * The feed could be downloaded, parsed, and has entries within the specified time frame
+* **STALE**
+ * The feed could be downloaded, parsed, but had no entries within the specified time frame
+* **Timedout**
+ * The connection, download, or parsing could not be completed within the time out period.
+* **SocketError**
+ * The connection resulted in a socket error.
+* **HTTPError**
+ * The HTTP connection failed with an HTTP error.
+* **RSSError**
+ * The downloaded RSS file was malformed.
+* **Redirect Loop**
+ * The feed URL redirects to itself.
+ 
 ## Related
 
 Related work: <a href='https://github.com/feedbin/opml_saw'>opml_saw</a>

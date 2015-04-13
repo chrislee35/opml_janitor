@@ -41,10 +41,10 @@ opts.each do |opt, arg|
 end
 
 if options[:help]
-  puts "Usage: #{$0} [-hvt] [-s <date>] [-i <input file>] [-o <output file>]"
+  puts "Usage: #{$0} [-hv] [-t <# threads>] [-s <date>] [-i <input file>] [-o <output file>]"
   puts "  -h    displays this help text"
   puts "  -v    turns on debugging messages (encouraged)"
-  puts "  -t    turns on threading (encouraged for opml feeds of more than 10 items)"
+  puts "  -t #  set the number of threads (default 1) (highly encouraged)"
   puts "  -i    specify a file for input (default is standard input)"
   puts "  -o    specify a file for output (default is standard output)"
   exit
